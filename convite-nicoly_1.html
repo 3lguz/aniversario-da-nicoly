@@ -694,33 +694,68 @@ function flyToSlot() {
   const ty = slotRect.top + slotRect.height / 2;
   const endScale = slotRect.width / startRect.width;
 
-  const rel = (fx, fy) => ({ x: fx - sx, y: fy - sy });
-  const p1 = rel(sx + innerWidth * 0.22, sy - innerHeight * 0.22);
-  const p2 = rel(innerWidth * 0.82, innerHeight * 0.32);
-  const p3 = rel(innerWidth * 0.14, innerHeight * 0.58);
-  const end = rel(tx, ty);
+  // control points for a single sweeping curve (Catmull-Rom), not rigid hops
+  const pts = [
+    { x: sx, y: sy },
+    { x: sx + innerWidth * 0.16, y: sy - innerHeight * 0.14 },
+    { x: innerWidth * 0.80, y: innerHeight * 0.20 },
+    { x: innerWidth * 0.66, y: innerHeight * 0.52 },
+    { x: innerWidth * 0.20, y: innerHeight * 0.60 },
+    { x: tx, y: ty }
+  ];
+
+  function catmullRom(p0, p1, p2, p3, t) {
+    const t2 = t * t, t3 = t2 * t;
+    return {
+      x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+      y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+    };
+  }
+
+  function pointAt(u) {
+    const segCount = pts.length - 1;
+    const segF = Math.min(Math.max(u, 0), 1) * segCount;
+    let seg = Math.min(Math.floor(segF), segCount - 1);
+    const t = segF - seg;
+    const p0 = pts[Math.max(seg - 1, 0)];
+    const p1 = pts[seg];
+    const p2 = pts[Math.min(seg + 1, pts.length - 1)];
+    const p3 = pts[Math.min(seg + 2, pts.length - 1)];
+    return catmullRom(p0, p1, p2, p3, t);
+  }
+
+  const easeInOutCubic = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 
   const flap = (el, dir) => el.animate(
-    [{ transform: 'rotateY(0deg)' }, { transform: `rotateY(${dir * 24}deg)` }, { transform: 'rotateY(0deg)' }],
-    { duration: 220, iterations: Infinity }
+    [{ transform: 'rotateY(0deg)' }, { transform: `rotateY(${dir * 16}deg)` }, { transform: 'rotateY(0deg)' }],
+    { duration: 280, iterations: Infinity, easing: 'ease-in-out' }
   );
   const flapL = flap(wl1, -1);
   const flapR = flap(wr1, 1);
 
-  const flight = introBfWrap.animate([
-    { transform: 'translate(0px,0px) rotate(0deg) scale(1)', offset: 0 },
-    { transform: `translate(${p1.x}px,${p1.y}px) rotate(16deg) scale(1.12)`, offset: 0.25 },
-    { transform: `translate(${p2.x}px,${p2.y}px) rotate(-14deg) scale(0.9)`, offset: 0.5 },
-    { transform: `translate(${p3.x}px,${p3.y}px) rotate(10deg) scale(1.05)`, offset: 0.75 },
-    { transform: `translate(${end.x}px,${end.y}px) rotate(0deg) scale(${endScale})`, offset: 1 }
-  ], { duration: 2600, easing: 'cubic-bezier(.4,.05,.3,1)', fill: 'forwards' });
+  const duration = 2800;
+  const t0 = performance.now();
 
-  flight.onfinish = () => {
-    flapL.cancel(); flapR.cancel();
-    wl1.style.transform = 'rotateY(0deg)';
-    wr1.style.transform = 'rotateY(0deg)';
-    land();
-  };
+  function step(now) {
+    const raw = Math.min((now - t0) / duration, 1);
+    const t = easeInOutCubic(raw);
+    const p = pointAt(t);
+    const ahead = pointAt(Math.min(t + 0.015, 1));
+    let bank = Math.atan2(ahead.y - p.y, ahead.x - p.x) * 180 / Math.PI * 0.4;
+    bank = Math.max(-20, Math.min(20, bank));
+    const scale = 1 + (endScale - 1) * t;
+    introBfWrap.style.transform = `translate(${p.x - sx}px,${p.y - sy}px) rotate(${bank}deg) scale(${scale})`;
+
+    if (raw < 1) {
+      requestAnimationFrame(step);
+    } else {
+      flapL.cancel(); flapR.cancel();
+      wl1.style.transform = 'rotateY(0deg)';
+      wr1.style.transform = 'rotateY(0deg)';
+      land();
+    }
+  }
+  requestAnimationFrame(step);
 }
 
 function land() {
