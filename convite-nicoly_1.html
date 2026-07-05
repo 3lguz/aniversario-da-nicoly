@@ -88,7 +88,29 @@
   .intro-text {
     color: var(--pri); font-size: 14px; font-weight: 600;
     letter-spacing: 3px; text-transform: uppercase;
-    margin-top: 28px; animation: pulse 2.2s ease-in-out infinite;
+    margin-top: 14px; opacity: .85;
+    transition: opacity .35s, transform .35s;
+  }
+  .magic-tab {
+    margin-top: 22px; padding: 16px 34px;
+    background: linear-gradient(135deg, var(--pri-deep), var(--pri));
+    color: white; border: none; border-radius: 60px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    box-shadow: 0 6px 28px rgba(124,58,237,.4), 0 0 0 rgba(233,179,255,.5);
+    position: relative; overflow: hidden;
+    animation: pulse 2.2s ease-in-out infinite;
+    transition: opacity .35s, transform .35s;
+  }
+  .magic-tab::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent);
+    animation: shimmer 2.6s infinite;
+  }
+  .magic-tab:active { transform: scale(.94); }
+  .magic-tab.hidden, .intro-text.hidden {
+    opacity: 0 !important; pointer-events: none; transform: translateY(10px) scale(.95);
+    animation: none;
   }
 
   .photo-ring {
@@ -332,8 +354,8 @@
 
 <!-- ═══ INTRO ═══ -->
 <div class="page visible" id="intro-page">
-  <div class="float-anim" id="intro-bf">
-    <svg viewBox="0 0 400 300" width="280" height="210" style="overflow:visible;filter:drop-shadow(0 10px 30px rgba(176,106,230,.3))">
+  <div class="float-anim" id="intro-bf-wrap">
+    <svg id="intro-bf-svg" viewBox="0 0 400 300" width="280" height="210" style="overflow:visible;filter:drop-shadow(0 10px 30px rgba(176,106,230,.3))">
       <g class="wing-left" id="wl1">
         <path d="M200,150 C178,75 95,12 42,58 C5,92 15,168 62,198 C108,228 172,205 200,150Z" fill="url(#wL)" opacity=".92" filter="url(#gl)"/>
         <path d="M200,150 C178,175 115,238 72,248 C42,256 32,225 50,202 C76,172 168,162 200,150Z" fill="url(#wLb)" opacity=".85" filter="url(#gl)"/>
@@ -364,28 +386,13 @@
       <circle cx="234" cy="56" r="4" fill="#FFD700" filter="url(#gg)"/>
     </svg>
   </div>
-  <p class="intro-text">✨ Abrindo seu convite mágico... ✨</p>
+  <p class="intro-text" id="intro-hint">✨ Um convite mágico chegou pra você ✨</p>
+  <button class="magic-tab" id="magic-tab" onclick="openInvite(event)">🪄 Aperte para abrir seu convite</button>
 </div>
 
 <!-- ═══ INVITE ═══ -->
 <div class="page" id="invite-page">
-  <div class="float-slow" style="margin-bottom:4px">
-    <svg viewBox="0 0 400 300" width="200" height="150" style="overflow:visible;filter:drop-shadow(0 6px 20px rgba(176,106,230,.25))">
-      <g>
-        <path d="M200,150 C178,75 95,12 42,58 C5,92 15,168 62,198 C108,228 172,205 200,150Z" fill="url(#wL)" opacity=".92"/>
-        <path d="M200,150 C178,175 115,238 72,248 C42,256 32,225 50,202 C76,172 168,162 200,150Z" fill="url(#wLb)" opacity=".85"/>
-        <circle cx="108" cy="92" r="22" fill="white" opacity=".18"/>
-        <circle cx="120" cy="55" r="7" fill="#FFD700" opacity=".35"/>
-      </g>
-      <g>
-        <path d="M200,150 C222,75 305,12 358,58 C395,92 385,168 338,198 C292,228 228,205 200,150Z" fill="url(#wR)" opacity=".92"/>
-        <path d="M200,150 C222,175 285,238 328,248 C358,256 368,225 350,202 C324,172 232,162 200,150Z" fill="url(#wRb)" opacity=".85"/>
-        <circle cx="292" cy="92" r="22" fill="white" opacity=".18"/>
-        <circle cx="280" cy="55" r="7" fill="#FFD700" opacity=".35"/>
-      </g>
-      <ellipse cx="200" cy="150" rx="4" ry="32" fill="#4A1270" opacity=".5"/>
-    </svg>
-  </div>
+  <div id="invite-bf-slot" style="width:200px;height:150px;margin-bottom:4px"></div>
 
   <div class="photo-ring">
     <div class="photo-inner">
@@ -635,24 +642,144 @@ const invite = document.getElementById('invite-page');
 const details = document.getElementById('details-page');
 const wl1 = document.getElementById('wl1');
 const wr1 = document.getElementById('wr1');
+const introBfWrap = document.getElementById('intro-bf-wrap');
+const introBfSvg = document.getElementById('intro-bf-svg');
+const magicTab = document.getElementById('magic-tab');
+const introHint = document.getElementById('intro-hint');
+const inviteSlot = document.getElementById('invite-bf-slot');
 
-// Butterfly starts closed
+// Butterfly starts closed (set before first paint, so no transition plays)
 wl1.style.transform = 'rotateY(76deg)';
 wr1.style.transform = 'rotateY(-76deg)';
 
-setTimeout(() => {
+// ─── TAP TO OPEN → BUTTERFLY OPENS, FLIES ACROSS THE PAGE, LANDS ───
+function openInvite(e) {
+  magicTab.disabled = true;
+  const pt = e && e.touches ? e.touches[0] : e;
+  burst(pt ? pt.clientX : innerWidth / 2, pt ? pt.clientY : innerHeight / 2, 22);
+
+  magicTab.classList.add('hidden');
+  introHint.classList.add('hidden');
+
+  // detach the butterfly so it can fly freely above every page
+  const startRect = introBfWrap.getBoundingClientRect();
+  introBfWrap.classList.remove('float-anim');
+  introBfWrap.style.position = 'fixed';
+  introBfWrap.style.left = startRect.left + 'px';
+  introBfWrap.style.top = startRect.top + 'px';
+  introBfWrap.style.width = startRect.width + 'px';
+  introBfWrap.style.height = startRect.height + 'px';
+  introBfWrap.style.margin = '0';
+  introBfWrap.style.zIndex = '6000';
+  introBfWrap.style.pointerEvents = 'none';
+
+  // open the wings
   wl1.style.transform = 'rotateY(0deg)';
   wr1.style.transform = 'rotateY(0deg)';
-}, 1400);
 
-setTimeout(() => {
-  burst(innerWidth/2, innerHeight/2, 20);
-  setTimeout(() => {
-    intro.classList.remove('visible');
-    invite.classList.add('visible');
-    invite.querySelectorAll('.anim-up').forEach(el => { el.style.animation = 'none'; void el.offsetHeight; el.style.animation = ''; });
-  }, 600);
-}, 3200);
+  // reveal the invitation underneath
+  invite.classList.add('visible');
+  invite.querySelectorAll('.anim-up').forEach(el => { el.style.animation = 'none'; void el.offsetHeight; el.style.animation = ''; });
+
+  setTimeout(flyToSlot, 650);
+}
+
+function flyToSlot() {
+  const startRect = introBfWrap.getBoundingClientRect();
+  const slotRect = inviteSlot.getBoundingClientRect();
+
+  const sx = startRect.left + startRect.width / 2;
+  const sy = startRect.top + startRect.height / 2;
+  const tx = slotRect.left + slotRect.width / 2;
+  const ty = slotRect.top + slotRect.height / 2;
+  const endScale = slotRect.width / startRect.width;
+
+  // control points for a single sweeping curve (Catmull-Rom), not rigid hops
+  const pts = [
+    { x: sx, y: sy },
+    { x: sx + innerWidth * 0.16, y: sy - innerHeight * 0.14 },
+    { x: innerWidth * 0.80, y: innerHeight * 0.20 },
+    { x: innerWidth * 0.66, y: innerHeight * 0.52 },
+    { x: innerWidth * 0.20, y: innerHeight * 0.60 },
+    { x: tx, y: ty }
+  ];
+
+  function catmullRom(p0, p1, p2, p3, t) {
+    const t2 = t * t, t3 = t2 * t;
+    return {
+      x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+      y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+    };
+  }
+
+  function pointAt(u) {
+    const segCount = pts.length - 1;
+    const segF = Math.min(Math.max(u, 0), 1) * segCount;
+    let seg = Math.min(Math.floor(segF), segCount - 1);
+    const t = segF - seg;
+    const p0 = pts[Math.max(seg - 1, 0)];
+    const p1 = pts[seg];
+    const p2 = pts[Math.min(seg + 1, pts.length - 1)];
+    const p3 = pts[Math.min(seg + 2, pts.length - 1)];
+    return catmullRom(p0, p1, p2, p3, t);
+  }
+
+  const easeInOutCubic = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+
+  const flap = (el, dir) => el.animate(
+    [{ transform: 'rotateY(0deg)' }, { transform: `rotateY(${dir * 16}deg)` }, { transform: 'rotateY(0deg)' }],
+    { duration: 280, iterations: Infinity, easing: 'ease-in-out' }
+  );
+  const flapL = flap(wl1, -1);
+  const flapR = flap(wr1, 1);
+
+  const duration = 2800;
+  const t0 = performance.now();
+
+  function step(now) {
+    const raw = Math.min((now - t0) / duration, 1);
+    const t = easeInOutCubic(raw);
+    const p = pointAt(t);
+    const ahead = pointAt(Math.min(t + 0.015, 1));
+    let bank = Math.atan2(ahead.y - p.y, ahead.x - p.x) * 180 / Math.PI * 0.4;
+    bank = Math.max(-20, Math.min(20, bank));
+    const scale = 1 + (endScale - 1) * t;
+    introBfWrap.style.transform = `translate(${p.x - sx}px,${p.y - sy}px) rotate(${bank}deg) scale(${scale})`;
+
+    if (raw < 1) {
+      requestAnimationFrame(step);
+    } else {
+      flapL.cancel(); flapR.cancel();
+      wl1.style.transform = 'rotateY(0deg)';
+      wr1.style.transform = 'rotateY(0deg)';
+      land();
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+function land() {
+  const r = inviteSlot.getBoundingClientRect();
+  burst(r.left + r.width / 2, r.top + r.height / 2, 16);
+
+  introBfWrap.getAnimations().forEach(a => a.cancel());
+  introBfWrap.style.position = 'static';
+  introBfWrap.style.left = '';
+  introBfWrap.style.top = '';
+  introBfWrap.style.width = '';
+  introBfWrap.style.height = '';
+  introBfWrap.style.margin = '0 0 4px';
+  introBfWrap.style.zIndex = '';
+  introBfWrap.style.pointerEvents = '';
+  introBfWrap.style.transform = 'none';
+  introBfWrap.classList.add('float-slow');
+
+  introBfSvg.setAttribute('width', '200');
+  introBfSvg.setAttribute('height', '150');
+
+  inviteSlot.appendChild(introBfWrap);
+  intro.classList.remove('visible');
+}
 
 function goDetails() {
   burst(innerWidth/2, innerHeight/3, 14);
